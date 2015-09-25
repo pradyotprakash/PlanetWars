@@ -1,0 +1,147 @@
+#include <iostream>
+#include "PlanetWars.h"
+#include <fstream>
+#include <cmath>
+#include <map>
+using namespace std;
+
+// int OWNER_ENEMY = 2 ;
+int OWNER_ME = 1;
+int OWNER_NEUTRAL = 0;
+
+ofstream out("/home/pradyot/Desktop/log.txt");  
+int whichPlanet(int ID, const PlanetWars& pw){
+return pw.GetPlanet(ID).Owner();
+}
+
+void Snipe(const PlanetWars& pw) {
+
+out <<"start"<< pw.MyFleets().size() << endl;   
+if(pw.EnemyFleets().size() <1){
+out <<"end"<< pw.MyFleets().size() << endl;   
+return;
+}
+if(pw.MyFleets().size() > 0 ){
+out <<"end"<< pw.MyFleets().size() << endl;   
+return;
+}
+map<int, bool> planetCanAttack;
+// (1) Find my strongest planet.
+// int source = -1;
+// double source_score = -999999.0;
+// int source_num_ships = 0;
+std::vector<Planet> my_planets = pw.MyPlanets();
+
+for (int i = 0; i < my_planets.size(); ++i) {
+planetCanAttack[my_planets[i].PlanetID()] = true;
+}
+
+// for (int i = 0; i < my_planets.size(); ++i) {
+//   const Planet& p = my_planets[i];
+//   double score = (double)p.NumShips();
+//   if (score > source_score) {
+// source_score = score;
+// source = p.PlanetID();
+// source_num_ships = p.NumShips();
+//   }
+// }
+
+vector<Fleet> enemyFleet = pw.EnemyFleets();
+vector<Planet> neutralPlanets = pw.NeutralPlanets();
+double dist = 100000000, x, y;
+Planet *source_pt;
+const Planet *target;
+
+bool canAttack = true, attacked = false;
+// int minPossibleDist = 0;    // Minimum Distance among planets which can attack
+out << " out there!\n" ; 
+
+while(canAttack && !attacked){
+out << " in there!\n" ; 
+source_pt = NULL;
+dist = 100000000;
+for (int i = 0; i < enemyFleet.size(); ++i)
+{
+int sniperTarget = enemyFleet[i].DestinationPlanet();
+// target = &(enemyFleet[i].DestinationPlanet());
+target = &pw.GetPlanet(sniperTarget);
+if(whichPlanet(sniperTarget, pw) == OWNER_NEUTRAL ){
+for(int j=0;j<my_planets.size();++j){
+if( !planetCanAttack[my_planets[j].PlanetID()] ) continue;
+x = my_planets[j].X() - target->X();
+y = my_planets[j].Y() - target->Y();
+float curDist = sqrt(x*x + y*y);
+if( curDist< dist ){
+dist = curDist;
+out <<" dist : "<< dist << endl;
+source_pt = &my_planets[j];
+}
+}
+}
+}
+
+if(source_pt == NULL ){
+canAttack = false;
+break;
+}
+
+// out << " E" << enemyFleet[0].TurnsRemaining() << endl;
+// out << " dist "<<dist << endl; 
+if(enemyFleet[0].TurnsRemaining() < (dist)){
+int num_ships = (enemyFleet[0].NumShips() - target->NumShips())
++ target->GrowthRate()*((dist) - enemyFleet[0].TurnsRemaining()+2);
+
+// check if the move is legal
+out << "NumShips " << num_ships << " source planet ships " << source_pt->NumShips() << endl; 
+if(num_ships < source_pt->NumShips()){
+out << "" << endl;
+pw.IssueOrder(source_pt->PlanetID(), target->PlanetID(), num_ships);
+attacked = true;
+}
+else {
+planetCanAttack[source_pt->PlanetID()] = false;
+}
+}
+
+else{
+return;
+}
+// out <<"end"<< pw.MyFleets().size() << endl;   
+}
+}
+
+
+
+
+
+
+
+
+
+
+void DoTurn(const PlanetWars& pw) {
+Snipe(pw);
+}
+
+// This is just the main game loop that takes care of communicating with the
+// game engine for you. You don't have to understand or change the code below.
+int main(int argc, char *argv[]) {
+std::string current_line;
+std::string map_data;
+while (true) {
+int c = std::cin.get();
+current_line += (char)c;
+if (c == '\n') {
+if (current_line.length() >= 2 && current_line.substr(0, 2) == "go") {
+PlanetWars pw(map_data);
+map_data = "";
+DoTurn(pw);
+pw.FinishTurn();
+} else {
+map_data += current_line;
+}
+current_line = "";
+}
+}
+return 0;
+}
