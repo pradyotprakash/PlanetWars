@@ -1,0 +1,17 @@
+		assume that the heuristic strength of my planet depends on the following factors:
+		  (i) number of ships presently on the planet
+		  (ii) growth rate
+		  (iii) friendly ships present around the planet
+		  		(a) their distance
+		  		(b) their strength
+		  		(c) their growth rate
+
+		  		In essence, a function of the following form:
+		  			       a                        -----------
+		  			x = ------- + b*strength + c* \/growth rate  
+		 			    distance                  
+			(iv) enemy ships present around the planet
+				a function similar to part (iii) but with different constants
+				Let's call the value 'y'.
+			(v) number of inbound enemy fleets
+			(vi) number of inbound friendly fleets

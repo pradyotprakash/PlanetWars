@@ -4,6 +4,6 @@ make
 
 # java -jar tools/PlayGame.jar maps/map1.txt 1000 1000 log.txt "./MyBot" "../Capture_Neutrals_Then_Enemies_Impatient/capture_neutrals_then_enemies_impatient" | java -jar tools/ShowGame.jar
 
-java -jar tools/PlayGame.jar maps/map9.txt 1000 1000 log.txt ./MyBot java\ -jar\ example_bots/DualBot.jar | java -jar tools/ShowGame.jar
+java -jar tools/PlayGame.jar maps/map9.txt 1000 1000 log.txt java\ -jar\ example_bots/DualBot.jar ./MyBot | java -jar tools/ShowGame.jar
 
 #java -jar tools/PlayGame.jar maps/map1.txt 1000 1000 log.txt ./MyBot ./MyBot | java -jar tools/ShowGame.jar
