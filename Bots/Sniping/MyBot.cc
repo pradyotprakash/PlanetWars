@@ -40,6 +40,7 @@ std::set<int> snipeTargets;
 pii myPlanetScore;
 pii enemyPlanetScore;
 
+
 int OWNER_ME = 1;
 int OWNER_NEUTRAL = 0;
 
@@ -49,7 +50,8 @@ bool calculatedDistances = false;
 
 mp planetToPlanetDistance;
 
-ofstream out("~/Desktop/log.txt");
+ofstream out("/home/pradyot/Desktop/log.txt");
+
 
 void getAllFleetsOnAllPlanets(const PlanetWars& pw){
 	Population.clear();
@@ -186,7 +188,7 @@ void snipe(Planet targetPlanet, PlanetWars pw){
 	int target = targetPlanet.PlanetID();
 	int time = 0;
 	int population = Population[target];
-	int owner = 0;
+	int owner = targetPlanet.Owner();
 
 	std::vector<Fleet> fleet = allFleets[target];
 
@@ -281,7 +283,7 @@ out<<"n size "<<neighbours.size();
 				if(population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate() <= Population[neighbours[i]] ){
 					if(distFromNeighbour <= time-1){
 					if(population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate() <= Population[neighbours[i]])
-					return;
+					break;
 					}
 
 					// if( distFromNeighbour == time){
@@ -289,10 +291,11 @@ out<<"n size "<<neighbours.size();
 					// 	return;
 					// }
 					else if(distFromNeighbour > time-1){
-						if(population + (distFromNeighbour - time)*targetPlanet.GrowthRate() < Population[neighbours[i]]){
+						if(population + (2+distFromNeighbour - time)*targetPlanet.GrowthRate() < Population[neighbours[i]]){
 					    out<<"target "<<owner<<" "<<population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate();
 						IssueOrder(pw,neighbours[i],target,population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate()	);
-						return;
+						fleet.insert(fleet.begin() + i+1,Fleet(1,population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate(),1,target,distFromNeighbour,distFromNeighbour));
+						break;
 						}
 					}
 				}
@@ -352,13 +355,19 @@ int whichPlanet(int ID, const PlanetWars& pw){
 
 
 int fleetScore(const Fleet& f){
+
 	return fleet_ships*f.NumShips() - fleet_turns*f.TurnsRemaining();
+
 }
 
 void FindPlanetScores(const PlanetWars& pw){
 
 	myPlanetScore.clear();
 	enemyPlanetScore.clear();
+
+	out << w << endl;
+	++w;
+	
 
 	vector<Planet> enemyPlanets = pw.EnemyPlanets();
 	vector<Fleet> enemyFleets = pw.EnemyFleets();
@@ -378,51 +387,99 @@ void FindPlanetScores(const PlanetWars& pw){
 	
 
 	// scores for my planets
+
+	out << 2 <<endl;
+
 	for(int i=0;i<myPlanets.size(); ++i){
+
 		const Planet& currentPlanet = myPlanets[i];
+
 		int heuristic = 0;
 		int currentPlanetID = currentPlanet.PlanetID();
 		int neighborPlanetID;
 
-		heuristic += planet_ships*Population[currentPlanet.PlanetID()];		
+		// assume that the heuristic strength of my planet depends on the following factors:
+		//   (i) number of ships presently on the planet
+
+		heuristic += planet_ships*Population[currentPlanet.PlanetID()];
+		
+		//   (ii) growth rate
+
 		heuristic += planet_growth_rate*currentPlanet.GrowthRate();
 
+
+		//   (iii) friendly ships present around the planet
+		//   		(a) their distance
+		//   		(b) their strength
+		//   		(c) their growth rate
+
+		//   		In essence, a function of the following form:
+		//   			       a                        -----------
+		//   			x = ------- + b*strength + c* \/growth rate  
+		//  			    distance                  
+		
 		for(int j=0;j<myPlanets.size();++j){
+			
 			const Planet& neighbor = myPlanets[j];
+
 			neighborPlanetID = neighbor.PlanetID();
+
 			if(neighbor.PlanetID() != currentPlanet.PlanetID()){
+			
 				int distance = planetToPlanetDistance[pair<int, int>(currentPlanetID, neighborPlanetID)];
 // further change the static parameter distance to a more flexible one which involves the turns
 // taken to reach a planet
-				if(distance < radius){					
+				if(distance < radius){
+					
 					// need to consider this planet
 					heuristic += friend_distance/distance + friend_ships*Population[neighbor.PlanetID()] + 
 									friend_growth_rate*neighbor.GrowthRate();
+
 				}
 			}
 		}
-	
+
+		//	(iv) enemy planets present around the planet
+		//		a function similar to part (iii) but with different constants
+		//		Let's call the value 'y'.
+		
 		for(int j=0;j<enemyPlanets.size();++j){
+			
 			const Planet& neighbor = enemyPlanets[j];
+
 			neighborPlanetID = neighbor.PlanetID();
+
 			if(neighborPlanetID != currentPlanetID){
+			
 				int distance = planetToPlanetDistance[pair<int, int>(currentPlanetID, neighborPlanetID)];
+
 				if(distance < radius){
+					
 					// need to consider this planet
 					heuristic += enemy_distance/distance + enemy_ships*Population[neighbor.PlanetID()] + 
 									enemy_growth_rate*neighbor.GrowthRate();
+
 				}
 			}
 		}
 
+		//	(v) number of inbound enemy fleets
+
 		for(int j=0;j<enemyFleets.size();++j){
+
 			if(enemyFleets[j].DestinationPlanet() == currentPlanetID)
 				heuristic -= fleetScore(enemyFleets[j]);
+
 		}
 
+
+		//	(vi) number of inbound friendly fleets
+
 		for(int j=0;j<myFleets.size();++j){
+
 			if(myFleets[j].DestinationPlanet() == currentPlanetID)
 				heuristic += fleetScore(myFleets[j]);
+
 		}
 
 		myPlanetScore.insert(pair<int, int>(heuristic, currentPlanetID));
@@ -431,51 +488,103 @@ void FindPlanetScores(const PlanetWars& pw){
 
 	/////////////////////////////////////////////////////////////////////////////////
 
+	out << 3 << endl;
+
 	for(int i=0;i<enemyPlanets.size(); ++i){
+
 		const Planet& currentPlanet = enemyPlanets[i];
-		int heuristic = 0;
-		heuristic += planet_ships*Population[currentPlanet.PlanetID()];
-		heuristic += planet_growth_rate*currentPlanet.GrowthRate();
 	
+		int heuristic = 0;
+
+		// assume that the heuristic strength of my planet depends on the following factors:
+		//   (i) number of ships presently on the planet
+
+		heuristic += planet_ships*Population[currentPlanet.PlanetID()];
+		
+		//   (ii) growth rate
+
+		heuristic += planet_growth_rate*currentPlanet.GrowthRate();
+
+
+		//   (iii) friendly ships present around the planet
+		//   		(a) their distance
+		//   		(b) their strength
+		//   		(c) their growth rate
+
+		//   		In essence, a function of the following form:
+		//   			       a                        -----------
+		//   			x = ------- + b*strength + c* \/growth rate  
+		//  			    distance                  
+		
 		for(int j=0;j<enemyPlanets.size();++j){
+			
 			const Planet& neighbor = enemyPlanets[j];
+
 			if(neighbor.PlanetID() != currentPlanet.PlanetID()){
+			
 				int distance = planetToPlanetDistance[pair<int, int>(currentPlanet.PlanetID(), neighbor.PlanetID())];
 // further change the static parameter distance to a more flexible one which involves the turns
 // taken to reach a planet
 				if(distance < radius){
+					
 					// need to consider this planet
 					heuristic += friend_distance/distance + friend_ships*Population[neighbor.PlanetID()] + 
 									friend_growth_rate*neighbor.GrowthRate();
+
 				}
 			}
 		}
-	
+
+		//	(iv) enemy ships present around the planet
+		//		a function similar to part (iii) but with different constants
+		//		Let's call the value 'y'.
+		
 		for(int j=0;j<myPlanets.size();++j){
+			
 			const Planet& neighbor = myPlanets[j];
+
 			if(neighbor.PlanetID() != currentPlanet.PlanetID()){
+			
 				int distance = planetToPlanetDistance[pair<int, int>(currentPlanet.PlanetID(), neighbor.PlanetID())];
+
 				if(distance < radius){
+					
 					// need to consider this planet
 					heuristic += enemy_distance/distance + enemy_ships*Population[neighbor.PlanetID()] + 
 									enemy_growth_rate*neighbor.GrowthRate();
+
 				}
 			}
 		}
 
+		//	(v) number of inbound enemy fleets
+
 		for(int j=0;j<myFleets.size();++j){
+
 			if(myFleets[j].DestinationPlanet() == currentPlanet.PlanetID())
 				heuristic -= fleetScore(myFleets[j]);
+
 		}
 
+
+		//	(vi) number of inbound friendly fleets
+
 		for(int j=0;j<enemyFleets.size();++j){
+
 			if(enemyFleets[j].DestinationPlanet() == currentPlanet.PlanetID())
 				heuristic += fleetScore(enemyFleets[j]);
+
 		}
+
+		// enemyPlanetScore[currentPlanet.PlanetID()] = heuristic;
 
 		enemyPlanetScore.insert(pair<int, int>(heuristic, currentPlanet.PlanetID()));
 	}
+
+	out<<4<<endl;
+
 }
+
 
 void Attack(const PlanetWars& pw){
 
@@ -484,17 +593,35 @@ void Attack(const PlanetWars& pw){
 	vector<Fleet> myFleets = pw.MyFleets();
 	vector<Planet> myPlanets = pw.MyPlanets();
 
+	map<int, int> numOfShipsRemaining;
+
+	for(int i=0;i<myPlanets.size();++i){
+
+		numOfShipsRemaining[myPlanets[i].PlanetID()] = Population[myPlanets[i].PlanetID()];
+
+	}
+
+	// out<<enemyPlanetScore.size()<<" "<<myPlanetScore.size()<<" Sizes\n";
+
 	for(pii::iterator it1 = enemyPlanetScore.begin(); it1 != enemyPlanetScore.end(); ++it1){
+
 		Planet enemy = pw.GetPlanet((*it1).second);
+		//out<<"Ships: "<<Population[enemy.PlanetID()]<<endl<<endl;
 		int strength = Population[enemy.PlanetID()];
+
 		for(int i=0;i<enemyFleets.size();++i){
-			if(enemyFleets[i].DestinationPlanet() == enemy.PlanetID())
+
+			if(enemyFleets[i].DestinationPlanet() == enemy.PlanetID()){
 				strength += enemyFleets[i].NumShips();
+			}
+
 		}
 
 		for(int i=0;i<myFleets.size();++i){
-			if(myFleets[i].DestinationPlanet() == enemy.PlanetID())
+
+			if(myFleets[i].DestinationPlanet() == enemy.PlanetID()){
 				strength -= myFleets[i].NumShips();
+			}
 		}
 
 		if(strength <= 0)
@@ -503,26 +630,34 @@ void Attack(const PlanetWars& pw){
 		bool attacked = false;
 
 		for(pii::iterator it2 = myPlanetScore.begin(); !attacked && it2 != myPlanetScore.end(); ++it2){
+
 			if(strength <= 0)
 				break;
 
 			Planet me = pw.GetPlanet((*it2).second);
+
 			int strength1 = strength + enemy.GrowthRate()*planetToPlanetDistance[pair<int, int>(enemy.PlanetID(), me.PlanetID())];
 			strength1 += 5;
-		
-			int p_id = me.PlanetID();
-			int p_ships = Population[p_id];
+
+			//out<<"ASA "<<strength<<" "<<strength1<<" "<<me.NumShips()<<endl<<endl;
 			
+			int p_id = me.PlanetID();
+			int p_ships = numOfShipsRemaining[p_id];
+			
+
 			if(p_ships >= strength1){
 				IssueOrder(pw,me.PlanetID(), enemy.PlanetID(), strength1);
+				numOfShipsRemaining[p_id] -= strength1;
 				attacked = true;
 			}
 			else{
 				IssueOrder(pw,me.PlanetID(), enemy.PlanetID(), p_ships/2);
 				strength -= p_ships/2;
+				numOfShipsRemaining[me.PlanetID()] -= p_ships/2;
 			}
 		}
 	}
+
 }
 
 void Defend(const PlanetWars& pw){
@@ -533,24 +668,36 @@ void Defend(const PlanetWars& pw){
 	vector<Planet> myPlanets = pw.MyPlanets();
 
 	map<int, int> numOfShipsRemaining;
+
 	for(int i=0;i<myPlanets.size();++i){
+
 		numOfShipsRemaining[myPlanets[i].PlanetID()] = Population[myPlanets[i].PlanetID()];
+
 	}
 
 	for(int j=0;j<myPlanets.size();++j){
+
 		set<pair<int, int> > distances;
+
 		for(int k=0;k<myPlanets.size();++k){
+
 			if(myPlanets[j].PlanetID() != myPlanets[k].PlanetID()){
 				distances.insert(pair<int, int>(planetToPlanetDistance[pair<int, int>(myPlanets[k].PlanetID(), myPlanets[j].PlanetID())], myPlanets[k].PlanetID()));
 			}
+
 		}
 
 		for(int i=0;i<enemyFleets.size();++i){
+
 			bool accounted = false;
+
 			if(enemyFleets[i].DestinationPlanet() == myPlanets[j].PlanetID()){
+
 				int xi = float(enemyFleets[i].NumShips() + 10)*float(enemyFleets[i].TurnsRemaining())/float(enemyFleets[i].NumShips() * enemyFleets[i].TotalTripLength());
+
 				// defend this planet from this incoming fleet
 				for(set<pair<int, int> >::iterator it = distances.begin();!accounted && it != distances.end();++it){
+
 					int p_id = (*it).second;
 					int p_ships = Population[p_id];
 					
@@ -565,15 +712,15 @@ void Defend(const PlanetWars& pw){
 						numOfShipsRemaining[p_id] -= p_ships/2;
 					}
 				}
+
 			}
+
 		}
 	}
 }
 
 void CaptureNeutrals(const PlanetWars& pw){
 	
-
-
 }
 
 
@@ -627,6 +774,21 @@ void DoTurn(const PlanetWars& pw) {
 	// }
 
 }
+
+
+// void DoTurn(const PlanetWars& pw) {
+// 	if(!calculatedDistances)
+// 		computeDistanceBetweenPlanets(pw);
+	
+// 	 Snipe(pw);
+// 	// Attack(pw);
+	
+// 	// if(pw.EnemyFleets().size() == 0)
+// 	// 	Attack(pw);
+// 	// else Snipe(pw);
+	
+
+// }
 
 // This is just the main game loop that takes care of communicating with the
 // game engine for you. You don't have to understand or change the code below.
