@@ -13,6 +13,10 @@ typedef set<pair<int, int>, greater<pair<int, int> > > pii;
 typedef map<int, vector<int> > mpIV;
 typedef map<int, vector<Fleet> > mpIF;
 
+
+typedef map<int, int > planetPops;
+planetPops Population;
+
 int turn = 0;
 
 struct Move{
@@ -31,6 +35,8 @@ mpIF enemyFleets;
 mpIF myFleets;
 mpIF allFleets;
 
+std::set<int> snipeTargets;
+
 pii myPlanetScore;
 pii enemyPlanetScore;
 
@@ -46,24 +52,20 @@ mp planetToPlanetDistance;
 
 ofstream out("/home/pradyot/Desktop/log.txt");
 
-void computeDistanceBetweenPlanets(const PlanetWars& pw){
+
+void getAllFleetsOnAllPlanets(const PlanetWars& pw){
+	Population.clear();
 	vector<Planet> allPlanets = pw.Planets();
-	
-	for(int i=0;i<allPlanets.size(); ++i){
-		for(int j=i+1; j<allPlanets.size();++j){
-			double dist = sqrt(pow(allPlanets[i].X() - allPlanets[j].X(), 2) + pow(allPlanets[i].Y() - allPlanets[j].Y(), 2));
-			planetToPlanetDistance[pair<int, int>(i, j)] = dist;
-			planetToPlanetDistance[pair<int, int>(j, i)] = dist;
-		}
+	int l = allPlanets.size();
+	for(int i = 0 ; i<l;i++){
+		Population[allPlanets[i].PlanetID()] = allPlanets[i].NumShips();
 	}
-
-	calculatedDistances = true;
 }
 
-int whichPlanet(int ID, const PlanetWars& pw){
-	return pw.GetPlanet(ID).Owner();
+void IssueOrder(const PlanetWars& pw, int source, int dest, int num){
+	pw.IssueOrder(source, dest, num);
+	Population[source] -= num;
 }
-
 
 void findNeighbours(int planetID, PlanetWars pw){
 	std::vector<Planet> planetList = pw.Planets();
@@ -164,7 +166,8 @@ void findNeighbours(int planetID, PlanetWars pw){
 	for(int i=0; i<allFleets1.size();i++){                // SORRY FOR THIS :'(    
 		for (int j = 0; j < allFleets1.size()-1; ++j)		// #PleaseDontKillMe	
 		{
-			if(allFleets1[j].TurnsRemaining() > allFleets1[j+1].TurnsRemaining() ){
+			if(allFleets1[j].TurnsRemaining() > allFleets1[j+1].TurnsRemaining() ||
+				(allFleets1[j].TurnsRemaining() == allFleets1[j+1].TurnsRemaining() && allFleets1[j].Owner()==2) ){
 				Fleet temp = allFleets1[j];
 				allFleets1[j] = allFleets1[j+1];
 				allFleets1[j+1] = temp;
@@ -184,7 +187,7 @@ void findNeighbours(int planetID, PlanetWars pw){
 void snipe(Planet targetPlanet, PlanetWars pw){
 	int target = targetPlanet.PlanetID();
 	int time = 0;
-	int population = targetPlanet.NumShips();
+	int population = Population[target];
 	int owner = 0;
 
 	std::vector<Fleet> fleet = allFleets[target];
@@ -223,17 +226,18 @@ void snipe(Planet targetPlanet, PlanetWars pw){
 
 	// 	for (int i = 0; i < neighbours.size(); ++i)
 	// 	{	int distFromNeighbour = ceil(planetToPlanetDistance[pair<int,int>(target,neighbours[i])]);
-	// 		if(population+targetPlanet.GrowthRate() +1< pw.GetPlanet(neighbours[i]).NumShips() ){
-	// 			if(distFromNeighbour < time){
-	// 			//later
+	// 		if(population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate() <= Population[neighbours[i]] ){
+	// 			if(distFromNeighbour <= time){
+	// 			if()
+	// 			return;
 	// 			}
 	// 			// if( distFromNeighbour == time){
-	// 			// 	pw.IssueOrder(neighbours[i],target,popula@tion+targetPlanet.GrowthRate()	+1);
+	// 			// 	IssueOrder(pw,neighbours[i],target,popula@tion+targetPlanet.GrowthRate()	+1);
 	// 			// 	return;
 	// 			// }
 	// 			else if(distFromNeighbour > time){
-	// 				if(population + (distFromNeighbour - time)*targetPlanet.GrowthRate() < pw.GetPlanet(neighbours[i]).NumShips()){
-	// 				pw.IssueOrder(neighbours[i],target,population + (distFromNeighbour - time)*targetPlanet.GrowthRate()	);
+	// 				if(population + (distFromNeighbour - time)*targetPlanet.GrowthRate() < Population[neighbours[i]]){
+	// 				IssueOrder(pw,neighbours[i],target,population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate()	);
 	// 				return;
 	// 				}
 	// 			}
@@ -242,64 +246,112 @@ void snipe(Planet targetPlanet, PlanetWars pw){
 	// }
 
 std::vector<int> neighbours = nearestFriends[target];
+	time = 0;
+	 population = Population[target];
+	 owner = 0;
+
+
 out<<"n size "<<neighbours.size();
 	for (int i = 0; i < fleet.size(); ++i)
-	{	int prevOwner = 0;
+	{	int prevOwner = owner;
 
+		int timepass = fleet[i].TurnsRemaining() - time;
 		time = fleet[i].TurnsRemaining();
-		out<<"time"<<time<<endl;
 
-		if(prevOwner == 2){
-			int distFromNeighbour = ceil(planetToPlanetDistance[pair<int,int>(target,neighbours[i])]);
-			if(population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate()+1 <  pw.GetPlanet(neighbours[i]).NumShips() ){
-				if(distFromNeighbour < time-1){
-				out<<"laterDude"<<distFromNeighbour<<endl;
-				return;
-				}
-				else if(distFromNeighbour >= time-1){
-					if(population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate() < pw.GetPlanet(neighbours[i]).NumShips()){
-					out<<"bheja"<<population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate()+1<<endl;
-					out<<"bheja pop"<<population <<endl;
-					out<<"bheja owner"<<owner <<endl;
-					out<<"bheja time"<<time <<endl;
-					out<<"bheja distFromNeighbour"<<distFromNeighbour <<endl;
-
-					pw.IssueOrder(neighbours[i],target,population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate()+1);
-					return;
-					}
-				}
-			}
-
+		if (owner != 0){
+			population += timepass * targetPlanet.GrowthRate();
 		}
 
-  		else if(owner == 2 && fleet[i+1].Owner()!=1){
-		  	for (int i = 0; i < neighbours.size(); ++i)
-			{
+		if(fleet[i].Owner() == owner){
+			population += fleet[i].NumShips();
+  		}
+
+  		else{
+  			population -= fleet[i].NumShips();
+  			if(population <0){
+  				owner = fleet[i].Owner();
+  				population *= -1;
+  			}
+  		}
+		out<<"i"<<i<<" o "<<owner<<" "<<fleet[i].NumShips()<<" "<<fleet[i].Owner()<<endl;
+		if(prevOwner != 0 && owner==2	){
+			int distFromNeighbour = ceil(planetToPlanetDistance[pair<int,int>(target,neighbours[i])]);
+
+			for (int i = 0; i < neighbours.size(); ++i)
+			{	
 				int distFromNeighbour = ceil(planetToPlanetDistance[pair<int,int>(target,neighbours[i])]);
-				out<<"d="<<distFromNeighbour<<endl;
-				if(population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate()+1 <  pw.GetPlanet(neighbours[i]).NumShips() ){
-					if(distFromNeighbour <= time){
-					out<<"laterDude"<<distFromNeighbour<<endl;
+				if(population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate() <= Population[neighbours[i]] ){
+					if(distFromNeighbour <= time-1){
+					if(population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate() <= Population[neighbours[i]])
 					return;
 					}
-					else if(distFromNeighbour > time){
-						if(population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate() < pw.GetPlanet(neighbours[i]).NumShips()){
-						out<<"bheja"<<population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate()+1<<endl;
-						out<<"bheja pop"<<population <<endl;
-						out<<"bheja owner"<<owner <<endl;
-						out<<"bheja time"<<time <<endl;
-						out<<"bheja distFromNeighbour"<<distFromNeighbour <<endl;
 
-						pw.IssueOrder(neighbours[i],target,population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate()+1);
+					// if( distFromNeighbour == time){
+					// 	IssueOrder(pw,neighbours[i],target,population+targetPlanet.GrowthRate()	+1);
+					// 	return;
+					// }
+					else if(distFromNeighbour > time-1){
+						if(population + (distFromNeighbour - time)*targetPlanet.GrowthRate() < Population[neighbours[i]]){
+					    out<<"target "<<owner<<" "<<population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate();
+						IssueOrder(pw,neighbours[i],target,population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate()	);
 						return;
 						}
 					}
 				}
-			}
+			}			
+		}
 
+  		else if(owner == 2 && fleet[i+1].Owner()!=1){
+
+			for (int j = 0; j < neighbours.size(); ++j)
+			{	
+				int distFromNeighbour = ceil(planetToPlanetDistance[pair<int,int>(target,neighbours[j])]);
+				if(population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate() <= Population[neighbours[j]] ){
+					if(distFromNeighbour <= time){
+					if(population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate() <= Population[neighbours[j]])
+					return;
+					}
+
+					// if( distFromNeighbour == time){
+					// 	IssueOrder(pw,neighbours[j],target,popula@tion+targetPlanet.GrowthRate()	+1);
+					// 	return;
+					// }
+					else if(distFromNeighbour > time){
+						if(population + (distFromNeighbour - time)*targetPlanet.GrowthRate() < Population[neighbours[j]]){
+						IssueOrder(pw,neighbours[j],target,population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate()	);
+						fleet.insert(fleet.begin() + i+1,Fleet(1,population + (1+distFromNeighbour - time)*targetPlanet.GrowthRate(),1,target,distFromNeighbour,distFromNeighbour));
+						out<<"Target "<<target<<" I "<<i;
+						break;
+						}
+					}
+				}
+			}
   		}
+	
 	}
+	snipeTargets.insert(target);
 }
+
+
+void computeDistanceBetweenPlanets(const PlanetWars& pw){
+	vector<Planet> allPlanets = pw.Planets();
+	
+	for(int i=0;i<allPlanets.size(); ++i){
+		for(int j=i+1; j<allPlanets.size();++j){
+			double dist = sqrt(pow(allPlanets[i].X() - allPlanets[j].X(), 2) + pow(allPlanets[i].Y() - allPlanets[j].Y(), 2));
+			planetToPlanetDistance[pair<int, int>(i, j)] = dist;
+			planetToPlanetDistance[pair<int, int>(j, i)] = dist;
+		}
+	}
+
+	calculatedDistances = true;
+}
+
+int whichPlanet(int ID, const PlanetWars& pw){
+	return pw.GetPlanet(ID).Owner();
+}
+
+
 
 int fleetScore(const Fleet& f){
 
@@ -348,7 +400,7 @@ void FindPlanetScores(const PlanetWars& pw){
 		// assume that the heuristic strength of my planet depends on the following factors:
 		//   (i) number of ships presently on the planet
 
-		heuristic += planet_ships*currentPlanet.NumShips();
+		heuristic += planet_ships*Population[currentPlanet.PlanetID()];
 		
 		//   (ii) growth rate
 
@@ -379,7 +431,7 @@ void FindPlanetScores(const PlanetWars& pw){
 				if(distance < radius){
 					
 					// need to consider this planet
-					heuristic += friend_distance/distance + friend_ships*neighbor.NumShips() + 
+					heuristic += friend_distance/distance + friend_ships*Population[neighbor.PlanetID()] + 
 									friend_growth_rate*neighbor.GrowthRate();
 
 				}
@@ -403,7 +455,7 @@ void FindPlanetScores(const PlanetWars& pw){
 				if(distance < radius){
 					
 					// need to consider this planet
-					heuristic += enemy_distance/distance + enemy_ships*neighbor.NumShips() + 
+					heuristic += enemy_distance/distance + enemy_ships*Population[neighbor.PlanetID()] + 
 									enemy_growth_rate*neighbor.GrowthRate();
 
 				}
@@ -446,7 +498,7 @@ void FindPlanetScores(const PlanetWars& pw){
 		// assume that the heuristic strength of my planet depends on the following factors:
 		//   (i) number of ships presently on the planet
 
-		heuristic += planet_ships*currentPlanet.NumShips();
+		heuristic += planet_ships*Population[currentPlanet.PlanetID()];
 		
 		//   (ii) growth rate
 
@@ -475,7 +527,7 @@ void FindPlanetScores(const PlanetWars& pw){
 				if(distance < radius){
 					
 					// need to consider this planet
-					heuristic += friend_distance/distance + friend_ships*neighbor.NumShips() + 
+					heuristic += friend_distance/distance + friend_ships*Population[neighbor.PlanetID()] + 
 									friend_growth_rate*neighbor.GrowthRate();
 
 				}
@@ -497,7 +549,7 @@ void FindPlanetScores(const PlanetWars& pw){
 				if(distance < radius){
 					
 					// need to consider this planet
-					heuristic += enemy_distance/distance + enemy_ships*neighbor.NumShips() + 
+					heuristic += enemy_distance/distance + enemy_ships*Population[neighbor.PlanetID()] + 
 									enemy_growth_rate*neighbor.GrowthRate();
 
 				}
@@ -544,7 +596,7 @@ void Attack(const PlanetWars& pw){
 
 	for(int i=0;i<myPlanets.size();++i){
 
-		numOfShipsRemaining[myPlanets[i].PlanetID()] = myPlanets[i].NumShips();
+		numOfShipsRemaining[myPlanets[i].PlanetID()] = Population[myPlanets[i].PlanetID()];
 
 	}
 
@@ -553,8 +605,8 @@ void Attack(const PlanetWars& pw){
 	for(pii::iterator it1 = enemyPlanetScore.begin(); it1 != enemyPlanetScore.end(); ++it1){
 
 		Planet enemy = pw.GetPlanet((*it1).second);
-		//out<<"Ships: "<<enemy.NumShips()<<endl<<endl;
-		int strength = enemy.NumShips();
+		//out<<"Ships: "<<Population[enemy.PlanetID()]<<endl<<endl;
+		int strength = Population[enemy.PlanetID()];
 
 		for(int i=0;i<enemyFleets.size();++i){
 
@@ -593,12 +645,12 @@ void Attack(const PlanetWars& pw){
 			
 
 			if(p_ships >= strength1){
-				pw.IssueOrder(me.PlanetID(), enemy.PlanetID(), strength1);
+				IssueOrder(pw,me.PlanetID(), enemy.PlanetID(), strength1);
 				numOfShipsRemaining[p_id] -= strength1;
 				attacked = true;
 			}
 			else{
-				pw.IssueOrder(me.PlanetID(), enemy.PlanetID(), p_ships/2);
+				IssueOrder(pw,me.PlanetID(), enemy.PlanetID(), p_ships/2);
 				strength -= p_ships/2;
 				numOfShipsRemaining[me.PlanetID()] -= p_ships/2;
 			}
@@ -618,7 +670,7 @@ void Defend(const PlanetWars& pw){
 
 	for(int i=0;i<myPlanets.size();++i){
 
-		numOfShipsRemaining[myPlanets[i].PlanetID()] = myPlanets[i].NumShips();
+		numOfShipsRemaining[myPlanets[i].PlanetID()] = Population[myPlanets[i].PlanetID()];
 
 	}
 
@@ -646,15 +698,15 @@ void Defend(const PlanetWars& pw){
 				for(set<pair<int, int> >::iterator it = distances.begin();!accounted && it != distances.end();++it){
 
 					int p_id = (*it).second;
-					int p_ships = pw.GetPlanet(p_id).NumShips();
+					int p_ships = Population[p_id];
 					
 					if(p_ships >= xi){
-						pw.IssueOrder(p_id, myPlanets[j].PlanetID(), xi);
+						IssueOrder(pw,p_id, myPlanets[j].PlanetID(), xi);
 						numOfShipsRemaining[p_id] -= xi;
 						accounted = true;
 					}
 					else{
-						pw.IssueOrder(p_id, myPlanets[j].PlanetID(), p_ships/2);
+						IssueOrder(pw,p_id, myPlanets[j].PlanetID(), p_ships/2);
 						xi -= p_ships/2;
 						numOfShipsRemaining[p_id] -= p_ships/2;
 					}
@@ -675,36 +727,51 @@ void DoTurn(const PlanetWars& pw) {
 		
 	turn++;
 	out<<endl<<"Turn "<<turn<<endl;
+
+	getAllFleetsOnAllPlanets(pw);
 	
 	if(!calculatedDistances)
 		computeDistanceBetweenPlanets(pw);
 
 	FindPlanetScores(pw);
 	Attack(pw);
-	Defend(pw);
+//	Defend(pw);
 
 	std::vector<Planet> planetList = pw.Planets();
 	for(int i=0;i<planetList.size();i++){
 		findNeighbours(planetList[i].PlanetID(),pw);
 	}
 
+
+	std::vector<Planet> enemyList = pw.EnemyPlanets();
+	for(int i=0;i<enemyList.size();i++){
+		//attack(enemyList[i]);
+		out << " yo man i am sniping!!!\n"; 
+		snipe(enemyList[i],pw);
+	}
 	
-	// std::vector<Planet> neutralList = pw.NeutralPlanets();
-	// for(int i=0;i<neutralList.size();i++){
-	// 	snipe(neutralList[i],pw);
+	std::vector<Planet> neutralList = pw.NeutralPlanets();
+	for(int i=0;i<neutralList.size();i++){
+		out << "2 yo man i am sniping!!!\n"; 
+		snipe(neutralList[i],pw);
+	}
+
+	std::vector<Planet> FriendlyList = pw.MyPlanets();
+	for(int i=0;i<FriendlyList.size();i++){
+//		defence(FriendlyList[i]);
+		out << "3 yo man i am sniping!!!\n"; 
+		snipe(FriendlyList[i],pw);
+	}
+
+	// for (int i = 0; i < pw.MyPlanets().size(); ++i)
+	// {
+	// 	Planet p = pw.MyPlanets()[i];
+	// 	for (int j = 0; j < pw.Planets().size(); ++j)
+	// 	{
+	// 		IssueOrder(pw,pw.MyPlanets()[i].PlanetID(),pw.Planets()[j].PlanetID(),0);
+	// 	}
 	// }
 
-	
-
-	// std::vector<Planet> enemyList = pw.EnemyPlanets();
-	// for(int i=0;i<enemyList.size();i++){
-	// 	attack(enemyList[i]);
-	// }
-
-	// std::vector<Planet> FriendlyList = pw.MyPlanets();
-	// for(int i=0;i<FriendlyList.size();i++){
-	// 	defence(FriendlyList[i]);
-	// }
 }
 
 
