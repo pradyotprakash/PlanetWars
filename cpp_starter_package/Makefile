@@ -1,6 +1,6 @@
 CC=g++
 
-all: MyBot constants.cc
+all: MyBot
 
 clean:
 	rm -rf *.o MyBot
